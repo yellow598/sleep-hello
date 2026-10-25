@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好睡計劃 - 睡眠日誌與 CBT-I 睡眠調節系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        night: {
+                            50: '#f1f5f9',
+                            100: '#e2e8f0',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-night-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Header -->
+    <header class="bg-night-900 border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div>
+                <h1 class="text-xl font-bold tracking-wide text-indigo-400 flex items-center gap-2">
+                    <span>🌙</span> 好睡計劃 <span class="text-xs font-normal px-2 py-0.5 bg-indigo-950 text-indigo-300 rounded-full border border-indigo-800">CBT-I 實踐版</span>
+                </h1>
+                <p class="text-xs text-slate-400">依據《睡眠，你好》（Hello Sleep）吳潔德博士方法設計</p>
+            </div>
+            <!-- Sync Status -->
+            <div class="flex items-center gap-2 text-xs">
+                <button id="sync-status" onclick="promptSyncSetup()" class="px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5 text-xs transition">
+                    <span class="w-2 h-2 rounded-full bg-slate-500"></span> 本地離線模式
+                </button>
+            </div>
+        </div>
+        <!-- Navigation Tabs -->
+        <nav class="max-w-5xl mx-auto px-4 flex overflow-x-auto space-x-2 border-t border-slate-800/60 py-2 scrollbar-none">
+            <button onclick="switchTab('log')" id="btn-log" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 text-white whitespace-nowrap">📝 今日紀錄</button>
+            <button onclick="switchTab('stats')" id="btn-stats" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800 whitespace-nowrap">📊 週調整建議</button>
+            <button onclick="switchTab('drop')" id="btn-drop" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800 whitespace-nowrap">🧘 放下睡眠努力</button>
+            <button onclick="switchTab('taper')" id="btn-taper" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800 whitespace-nowrap">💊 減藥指南</button>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-5xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+
+        <!-- TAB 1: 今日紀錄 -->
+        <section id="tab-log" class="tab-content space-y-5">
+            <!-- 錨點起床時間 -->
+            <div class="bg-night-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                <div class="flex items-start gap-3">
+                    <div class="w-11 h-11 shrink-0 rounded-xl bg-teal-950 border border-teal-900 flex items-center justify-center text-xl">⚓</div>
+                    <div>
+                        <div class="text-sm font-semibold text-slate-100">核心原則：固定錨點起床時間 (Anchor Wake Time)</div>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">根據《睡眠，你好》，不論昨晚睡得好壞，每天都在完全相同的時間起床，是重塑晝夜節律的第一步。</p>
+                    </div>
+                </div>
+                <label class="flex items-center justify-between sm:justify-start gap-3 bg-night-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-teal-300 whitespace-nowrap">
+                    <span>⏰ 每日錨點起床時間</span>
+                    <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" autocomplete="off" title="24 小時制，例如 23:30" data-time24 id="anchor-time" class="bg-night-900 border border-slate-700 rounded-lg px-2 py-1.5 text-base text-slate-100 [color-scheme:dark] focus:border-teal-500 focus:outline-none">
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+                <!-- 左：填寫表單 -->
+                <form id="sleep-form" onsubmit="saveLog(event)" class="lg:col-span-3 bg-night-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-slate-800">
+                        <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2"><span class="text-indigo-400">📅</span> 填寫睡眠日誌</h2>
+                        <input type="date" id="log-date" class="bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 [color-scheme:dark] focus:border-indigo-500 focus:outline-none">
+                    </div>
+
+                    <!-- 1. 時間點 -->
+                    <div class="bg-night-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div class="text-xs font-bold text-violet-400 tracking-wide">1. 昨晚與今晨時間點 (TIMELINE)</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">上床時間 (In-bed time)</label>
+                                <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" autocomplete="off" title="24 小時制，例如 23:30" data-time24 id="bed-time" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 [color-scheme:dark] focus:border-indigo-500 focus:outline-none">
+                                <p class="text-[10px] text-slate-500 mt-1">進入臥室準備睡覺的時間</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">熄燈準備入睡 (Lights-out time)</label>
+                                <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" autocomplete="off" title="24 小時制，例如 23:30" data-time24 id="lights-time" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 [color-scheme:dark] focus:border-indigo-500 focus:outline-none">
+                                <p class="text-[10px] text-slate-500 mt-1">關燈、放下手機準備睡覺</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">最後醒來時間 (Final wake-up)</label>
+                                <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" autocomplete="off" title="24 小時制，例如 23:30" data-time24 id="wake-time" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 [color-scheme:dark] focus:border-indigo-500 focus:outline-none">
+                                <p class="text-[10px] text-slate-500 mt-1">今早最後一次醒來（睜眼不再睡）的時間</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">實際離開床鋪 (Out-of-bed time)</label>
+                                <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" autocomplete="off" title="24 小時制，例如 23:30" data-time24 id="out-bed-time" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 [color-scheme:dark] focus:border-indigo-500 focus:outline-none">
+                                <p class="text-[10px] text-slate-500 mt-1">起床下床的時間 ‧ 錨點 <span id="anchor-hint">07:00</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 夜間清醒時間 -->
+                    <div class="bg-night-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div class="text-xs font-bold text-violet-400 tracking-wide">2. 夜間清醒時間 (DURATIONS)</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">躺下後多久入睡？（分鐘）</label>
+                                <div class="relative">
+                                    <input type="number" inputmode="numeric" id="latency" min="0" placeholder="例如：25" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">分鐘</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">半夜共醒來多久？（WASO 分鐘）</label>
+                                <div class="relative">
+                                    <input type="number" inputmode="numeric" id="waso-minutes" min="0" placeholder="例如：30" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">分鐘</span>
+                                </div>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-medium text-slate-300 mb-1">半夜醒來幾次？</label>
+                                <div class="relative sm:w-1/2 sm:pr-1.5">
+                                    <input type="number" inputmode="numeric" id="awakenings" min="0" placeholder="例如：2" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <span class="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">次</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. 主觀感受 -->
+                    <div class="bg-night-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div class="text-xs font-bold text-violet-400 tracking-wide">3. 主觀感受與白天紀錄</div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-2">主觀睡眠品質 (Sleep Quality Rating)</label>
+                            <input type="hidden" id="quality" value="3">
+                            <div class="grid grid-cols-5 gap-2">
+                                <button type="button" data-q="1" onclick="setQuality(1)" class="quality-btn flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-xl border bg-night-950 transition"><span class="text-2xl">😫</span><span class="text-[10px]">極差</span></button>
+                                <button type="button" data-q="2" onclick="setQuality(2)" class="quality-btn flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-xl border bg-night-950 transition"><span class="text-2xl">😟</span><span class="text-[10px]">較差</span></button>
+                                <button type="button" data-q="3" onclick="setQuality(3)" class="quality-btn flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-xl border bg-night-950 transition"><span class="text-2xl">😐</span><span class="text-[10px]">普通</span></button>
+                                <button type="button" data-q="4" onclick="setQuality(4)" class="quality-btn flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-xl border bg-night-950 transition"><span class="text-2xl">🙂</span><span class="text-[10px]">良好</span></button>
+                                <button type="button" data-q="5" onclick="setQuality(5)" class="quality-btn flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-xl border bg-night-950 transition"><span class="text-2xl">😁</span><span class="text-[10px]">極佳</span></button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">咖啡因攝取（幾杯 / 時間）</label>
+                                <input type="text" id="caffeine" placeholder="例如：2杯 (14:00 後未喝)" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">白天午睡（幾分鐘 / 時間）</label>
+                                <input type="text" id="nap" placeholder="例如：無，或 20 分鐘 (13:00)" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">白天壓力程度 (1 - 5)</label>
+                                <select id="stress" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <option value="1">1 - 幾乎沒有壓力</option>
+                                    <option value="2">2 - 輕微壓力</option>
+                                    <option value="3" selected>3 - 中等壓力</option>
+                                    <option value="4">4 - 壓力偏大</option>
+                                    <option value="5">5 - 壓力很大</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">白天精力感 (1 - 5)</label>
+                                <select id="energy" class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <option value="1">1 - 非常疲倦</option>
+                                    <option value="2">2 - 有些疲倦</option>
+                                    <option value="3" selected>3 - 普通平穩</option>
+                                    <option value="4">4 - 精神不錯</option>
+                                    <option value="5">5 - 精力充沛</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">備註 / 藥物 / 睡眠情境筆記</label>
+                            <textarea id="notes" rows="3" placeholder="例如：服用半顆史蒂諾斯、睡前做了10分鐘呼吸練習、半夜醒來有落實離床規則..." class="w-full bg-night-950 border border-slate-700 rounded-lg px-3 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none"></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full min-h-[48px] bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.99] text-white font-medium py-3 rounded-xl shadow-lg transition">
+                        💾 儲存今日日誌並計算睡眠效率
+                    </button>
+                </form>
+
+                <!-- 右：即時計算指標 -->
+                <aside class="lg:col-span-2 lg:sticky lg:top-44 bg-night-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+                    <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                        <h3 class="text-base font-semibold text-slate-100 flex items-center gap-2"><span class="text-indigo-400">🧮</span> 即時計算指標</h3>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-900">自動分析</span>
+                    </div>
+
+                    <div class="bg-night-950 border border-slate-800 rounded-xl p-4 text-center space-y-3">
+                        <div class="text-xs text-slate-400">睡眠效率 (Sleep Efficiency, SE)</div>
+                        <div class="relative w-36 h-36 sm:w-40 sm:h-40 mx-auto">
+                            <svg viewBox="0 0 160 160" class="w-full h-full -rotate-90">
+                                <circle cx="80" cy="80" r="70" fill="none" stroke="#1e293b" stroke-width="10"/>
+                                <circle id="se-ring" cx="80" cy="80" r="70" fill="none" stroke="#475569" stroke-width="10" stroke-linecap="round" stroke-dasharray="439.8" stroke-dashoffset="439.8" style="transition: stroke-dashoffset .4s, stroke .4s"/>
+                            </svg>
+                            <div id="preview-se" class="absolute inset-0 flex items-center justify-center text-3xl font-bold text-slate-400">--%</div>
+                        </div>
+                        <div id="preview-status" class="inline-block text-xs px-3 py-1 rounded-lg border border-slate-700 text-slate-400">填寫後自動計算</div>
+                        <div class="text-[10px] text-slate-500">目標 SE ≥ 85% 為優良的高品質睡眠</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
+                            <div class="text-[10px] text-slate-400">在床總時間 (TIB)</div>
+                            <div id="preview-tib" class="text-base sm:text-lg font-bold text-slate-100 mt-1">--</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">上床到離床的時間長度</div>
+                        </div>
+                        <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
+                            <div class="text-[10px] text-slate-400">實際總睡眠時間 (TST)</div>
+                            <div id="preview-tst" class="text-base sm:text-lg font-bold text-violet-400 mt-1">--</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">扣除入睡、夜醒與賴床</div>
+                        </div>
+                        <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
+                            <div class="text-[10px] text-slate-400">清醒在床時間</div>
+                            <div id="preview-awake" class="text-base sm:text-lg font-bold text-rose-400 mt-1">--</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">在床上醒著的總和</div>
+                        </div>
+                        <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
+                            <div class="text-[10px] text-slate-400">晨間賴床</div>
+                            <div id="preview-linger" class="text-base sm:text-lg font-bold text-slate-100 mt-1">--</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">醒來到離床的時間</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-950/40 border border-indigo-900/60 rounded-xl p-4 text-xs leading-relaxed">
+                        <div class="font-semibold text-indigo-300 mb-1">💡 《睡眠，你好》CBT-I 提示：</div>
+                        <p id="preview-tip" class="text-slate-300">填寫上方時間後，這裡會依據您當晚的狀況給出提示。</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- TAB 2: 週調整建議 -->
+        <section id="tab-stats" class="tab-content hidden space-y-6">
+            <div class="bg-night-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-lg space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-800">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2"><span class="text-violet-400">🪄</span> 週睡眠視窗調整建議 (Sleep Window Adjustment)</h2>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">根據過去 7 天的平均睡眠效率 (Average SE %)，依照 Dr. Jade Wu 的認知行為治療 (CBT-I) 限制睡眠法進行下週時段調整。</p>
+                    </div>
+                    <span class="self-start shrink-0 text-xs px-3 py-1 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800 whitespace-nowrap">CBT-I 核心演算法</span>
+                </div>
+
+                <!-- 四個指標 -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div class="bg-night-950 border border-slate-800 rounded-xl p-4 text-center">
+                        <div class="text-xs text-slate-300">近 7 天記錄天數</div>
+                        <div id="day-count" class="text-2xl sm:text-3xl font-bold text-slate-100 mt-2">0 / 7 天</div>
+                        <div class="text-[10px] text-slate-500 mt-2">建議至少填寫 5 天以上以獲得精準建議</div>
+                    </div>
+                    <div class="bg-night-950 border border-slate-800 rounded-xl p-4 text-center">
+                        <div class="text-xs text-slate-300">週平均睡眠效率 (Avg SE)</div>
+                        <div id="avg-se" class="text-2xl sm:text-3xl font-bold text-teal-400 mt-2">-- %</div>
+                        <div id="avg-se-note" class="text-[10px] text-slate-500 mt-2">無數據</div>
+                    </div>
+                    <div class="bg-night-950 border border-slate-800 rounded-xl p-4 text-center">
+                        <div class="text-xs text-slate-300">週平均實際睡眠 (Avg TST)</div>
+                        <div id="avg-tst" class="text-2xl sm:text-3xl font-bold text-violet-400 mt-2">-- 小時</div>
+                        <div class="text-[10px] text-slate-500 mt-2">平均每夜真正睡著時間</div>
+                    </div>
+                    <div class="bg-night-950 border border-slate-800 rounded-xl p-4 text-center">
+                        <div class="text-xs text-slate-300">週平均在床時間 (Avg TIB)</div>
+                        <div id="avg-tib" class="text-2xl sm:text-3xl font-bold text-slate-100 mt-2">-- 小時</div>
+                        <div class="text-[10px] text-slate-500 mt-2">目前給予的睡眠視窗</div>
+                    </div>
+                </div>
+
+                <!-- 下週建議 -->
+                <div class="bg-night-950 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-4">
+                    <div class="flex items-center gap-4">
+                        <div id="rec-icon" class="w-12 h-12 shrink-0 rounded-xl bg-indigo-950 border border-indigo-900 flex items-center justify-center text-xl">🧭</div>
+                        <div>
+                            <div class="text-xs text-slate-400">下週睡眠計畫建議</div>
+                            <div id="window-recommendation" class="text-base sm:text-lg font-bold text-slate-100 mt-0.5">尚無足夠睡眠數據</div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-800 pt-4">
+                        <p id="rec-body" class="text-sm text-slate-300 leading-relaxed">請回到「今日紀錄」開始紀錄您的睡眠。持續紀錄 3-7 天後，系統將自動計算並給出 CBT-I 睡眠視窗調整建議。</p>
+                    </div>
+                </div>
+
+                <!-- 調整規則對照表 -->
+                <div class="space-y-3 pt-1">
+                    <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-2"><span class="text-teal-400">📖</span> 《睡眠，你好》睡眠限制法 (Sleep Restriction) 調整規則對照表</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                        <div id="rule-up" class="rounded-xl border border-emerald-900 bg-emerald-950/20 p-4 space-y-2">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-bold text-emerald-400">平均 SE ≥ 85%</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 whitespace-nowrap">擴展視窗</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">代表睡眠效率非常好，幾乎躺下就睡著。下週可將睡眠視窗<strong>擴展 15-30 分鐘</strong>（提早 15 分鐘上床），給予身體更多睡眠時間。</p>
+                        </div>
+                        <div id="rule-keep" class="rounded-xl border border-amber-900 bg-amber-950/20 p-4 space-y-2">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-bold text-amber-400">平均 SE 介於 80% - 85%</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 whitespace-nowrap">維持現狀</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">睡眠效率穩定，大腦正在逐漸鞏固「床與睡眠」的連結。下週<strong>維持相同的上床與起床時間</strong>，繼續累積睡眠壓力。</p>
+                        </div>
+                        <div id="rule-down" class="rounded-xl border border-rose-900 bg-rose-950/20 p-4 space-y-2">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-bold text-rose-400">平均 SE &lt; 80%</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 whitespace-nowrap">收緊視窗</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">在床上清醒過久，大腦對床產生焦慮與警覺。下週將上床時間<strong>延後 15 分鐘</strong>（縮短視窗），提升睡眠連續性。（安全底限：不低於 5.5 小時）</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="bg-night-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+                <h3 class="text-sm font-semibold text-slate-200 mb-4">睡眠效率與總時數趨勢圖</h3>
+                <div class="h-60 sm:h-64 relative">
+                    <canvas id="sleepChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Log History Table -->
+            <div class="bg-night-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg overflow-x-auto">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                    <h3 class="text-sm font-semibold text-slate-200">歷史日誌列表</h3>
+                    <div class="flex gap-2">
+                        <button onclick="exportCSV()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg text-slate-300 border border-slate-700 transition">匯出 CSV</button>
+                        <button onclick="clearAllData()" class="px-3 py-2 bg-rose-950/60 hover:bg-rose-900/60 text-xs rounded-lg text-rose-300 border border-rose-800 transition">清除所有記錄</button>
+                    </div>
+                </div>
+                <table class="w-full min-w-[640px] text-left text-xs text-slate-300">
+                    <thead class="bg-slate-800/60 text-slate-400 uppercase">
+                        <tr>
+                            <th class="p-3">日期</th>
+                            <th class="p-3">上床 → 起床</th>
+                            <th class="p-3">在床時數</th>
+                            <th class="p-3">睡眠時數</th>
+                            <th class="p-3">睡眠效率</th>
+                            <th class="p-3">備註</th>
+                            <th class="p-3 text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body" class="divide-y divide-slate-800">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- TAB 3: 史蒂諾斯減藥指南 -->
+        <section id="tab-taper" class="tab-content hidden space-y-6">
+            <div class="bg-night-900 border border-slate-800 rounded-xl p-6 shadow-lg space-y-4">
+                <div class="border-b border-slate-800 pb-4">
+                    <h2 class="text-lg font-semibold text-indigo-400 flex items-center gap-2">
+                        <span>💊</span> 史蒂諾斯（Stilnox / Zolpidem）漸進式減藥與就醫對照指南
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">依據《睡眠,你好》吳潔德博士之 CBT-I 減藥原則編撰</p>
+                </div>
+
+                <div class="bg-amber-950/30 border border-amber-800/50 p-4 rounded-xl text-xs text-amber-200 space-y-2">
+                    <div class="font-bold flex items-center gap-1.5">
+                        <span>⚠️</span> 醫療安全重要聲明
+                    </div>
+                    <p>史蒂諾斯屬於短效型安眠藥，長期使用若突然自行停藥，極易引發「反彈性失眠（Rebound Insomnia）」與焦慮。<strong>所有減藥與劑量調整，務必在您的開藥醫師指導與監督下進行！</strong></p>
+                </div>
+
+                <!-- 4 Phases -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div class="bg-night-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="text-xs font-bold text-indigo-400">第一階段：建立自然睡眠驅動力</div>
+                        <p class="text-xs text-slate-300 leading-relaxed">在考慮減藥前，先透過 CBT-I 固定起床時間與限制在床時間。當睡眠效率（SE%）連續 2 週穩定維持在 85% 以上，身體已經累積足夠的自然睡眠壓力，此時減藥成功率最高。</p>
+                    </div>
+                    <div class="bg-night-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="text-xs font-bold text-indigo-400">第二階段：與醫師擬定微量階梯式計畫</div>
+                        <p class="text-xs text-slate-300 leading-relaxed">切勿一次砍半。建議與醫師討論採用漸進式減量（例如從 1 顆 $\rightarrow$ 3/4 顆 $\rightarrow$ 1/2 顆 $\rightarrow$ 1/4 顆），或每週選擇固定 1 天減量，適應穩定後再擴大天數。</p>
+                    </div>
+                    <div class="bg-night-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="text-xs font-bold text-indigo-400">第三階段：正視並渡過反彈性失眠</div>
+                        <p class="text-xs text-slate-300 leading-relaxed">減藥頭幾天若出現入睡變慢，這是神經受體恢復敏感度的正常適應現象，通常數天內會過去。運用 20 分鐘離床規則，不將清醒與焦慮跟「沒吃藥」綁在一起。</p>
+                    </div>
+                    <div class="bg-night-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="text-xs font-bold text-indigo-400">第四階段：卸下對藥物的道德批判</div>
+                        <p class="text-xs text-slate-300 leading-relaxed">安眠藥只是過渡期的輔助輪。不需要因為還在依賴藥物而感到自責或罪惡。接受現階段的狀態，同時相信大腦原本就具備完整的睡眠調節本能。</p>
+                    </div>
+                </div>
+
+                <!-- Doctor Consultation Checklist Box -->
+                <div class="bg-indigo-950/30 border border-indigo-800/50 p-5 rounded-xl space-y-3 mt-4">
+                    <h3 class="text-sm font-semibold text-indigo-300 flex items-center justify-between">
+                        <span>📋 門診就醫對照與溝通摘要（可一鍵複製給醫師看）</span>
+                        <button onclick="copyDoctorSummary()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-xs text-white rounded-md transition">複製摘要</button>
+                    </h3>
+                    <div id="doctor-summary-text" class="bg-night-950 p-4 rounded-lg font-mono text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                        正在計算您的近 7 天平均數據...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: 放下睡眠努力 -->
+        <section id="tab-drop" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Quicksand Paradox -->
+                <div class="bg-night-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
+                    <h3 class="text-base font-semibold text-indigo-400">🌊 流沙悖論 (Quicksand Paradox)</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        「睡眠就像流沙，你越掙扎、越用力想控制它、計算它、逼自己快點睡著，你就會陷得越深。」
+                    </p>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        《睡眠，你好》核心提醒：<strong>睡眠不是一項需要完成的工作（Task）。</strong> 越是放手讓大腦自己去睡，大腦反而越能順利切入睡眠模式。
+                    </p>
+                </div>
+
+                <!-- Stimulus Control -->
+                <div class="bg-night-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
+                    <h3 class="text-base font-semibold text-indigo-400">🚪 刺激控制黃金法則 (20分鐘離床)</h3>
+                    <ul class="text-xs text-slate-300 space-y-2 list-disc list-inside">
+                        <li><strong>不要在床上清醒乾瞪眼：</strong>躺床超過約 20 分鐘還沒睡著，請立刻起床。</li>
+                        <li><strong>離開臥室：</strong>到微弱燈光的客廳做點輕鬆的事（如看紙本書、聽廣播）。</li>
+                        <li><strong>有睏意再回床：</strong>絕對不要在床上滑手機、看時鐘計算時間。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Breathing Exercise -->
+            <div class="bg-night-900 border border-slate-800 rounded-xl p-5 shadow-lg text-center space-y-4">
+                <h3 class="text-base font-semibold text-indigo-400">🫁 4-7-8 夜間放鬆呼吸練習</h3>
+                <p class="text-xs text-slate-400">當躺在床上感到思緒煩雜、焦慮時，可跟著以下節奏調節副交感神經：</p>
+                <div id="breathing-display" class="py-6 text-2xl font-bold text-indigo-300 tracking-wider">
+                    準備開始...
+                </div>
+                <button onclick="startBreathing()" id="breath-btn" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs text-white rounded-lg transition shadow">
+                    開始 1 分鐘引導呼吸
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-6 text-xs text-slate-500 border-t border-slate-800 mt-auto">
+        好睡計劃 © 2026 | 結合 CBT-I 與科學睡眠調節
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Initialize Date
+        document.getElementById('log-date').valueAsDate = new Date();
+
+        let logs = JSON.parse(localStorage.getItem('sleep_logs') || '[]');
+        let chartInstance = null;
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('text-slate-400', 'hover:text-slate-200', 'hover:bg-slate-800');
+            });
+            
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-400', 'hover:text-slate-200', 'hover:bg-slate-800');
+                activeBtn.classList.add('bg-indigo-600', 'text-white');
+            }
+
+            if (tabId === 'stats') {
+                renderStats();
+            } else if (tabId === 'taper') {
+                renderDoctorSummary();
+            }
+        }
+
+        // Time helper
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        // 從 from 到 to 經過的分鐘數（可跨午夜）
+        function minutesBetween(from, to) {
+            let d = timeToMinutes(to) - timeToMinutes(from);
+            if (d < 0) d += 24 * 60;
+            return d;
+        }
+
+        // TIB = 上床到離床；TST = TIB - 入睡時間 - 夜醒 - 晨間賴床
+        function calculateMetrics(bedTime, lightsTime, latency, waso, wakeTime, outBedTime) {
+            const wakeM = minutesBetween(bedTime, wakeTime);
+            const outM = outBedTime ? Math.max(minutesBetween(bedTime, outBedTime), wakeM) : wakeM;
+            const lingerM = outM - wakeM;
+
+            const tibM = outM;
+            const lat = Number(latency) || 0;
+            const wasoM = Number(waso) || 0;
+            const awakeM = lat + wasoM + lingerM;
+            const tstM = Math.max(0, tibM - awakeM);
+            const se = tibM > 0 ? Math.round((tstM / tibM) * 1000) / 10 : 0;
+
+            return {
+                tib: (tibM / 60).toFixed(1),
+                tst: (tstM / 60).toFixed(1),
+                se: Math.min(se, 100),
+                tibMin: tibM,
+                tstMin: tstM,
+                awakeMin: awakeM,
+                lingerMin: lingerM
+            };
+        }
+
+        function formatDuration(min) {
+            const h = Math.floor(min / 60);
+            const m = Math.round(min % 60);
+            return h > 0 ? `${h} 小時 ${m} 分` : `${m} 分鐘`;
+        }
+
+        // 24 小時制時間欄位：數字鍵盤輸入，自動補冒號（2330 → 23:30）
+        const TIME24 = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+        document.querySelectorAll('input[data-time24]').forEach(input => {
+            input.addEventListener('input', () => {
+                const digits = input.value.replace(/\D/g, '').slice(0, 4);
+                input.value = digits.length > 2 ? digits.slice(0, 2) + ':' + digits.slice(2) : digits;
+                input.setCustomValidity('');
+            });
+            // 輸入完成時補零：7 → 07:00、730 → 07:30
+            input.addEventListener('change', () => {
+                const digits = input.value.replace(/\D/g, '');
+                if (digits.length === 1 || digits.length === 2) {
+                    input.value = digits.padStart(2, '0') + ':00';
+                } else if (digits.length === 3) {
+                    input.value = '0' + digits[0] + ':' + digits.slice(1);
+                }
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                if (input.value && !TIME24.test(input.value)) {
+                    input.setCustomValidity('請輸入 24 小時制時間，例如 23:30');
+                    input.reportValidity();
+                }
+            });
+        });
+
+        // 錨點起床時間
+        const anchorInput = document.getElementById('anchor-time');
+        anchorInput.value = localStorage.getItem('sleep_anchor') || '07:00';
+        document.getElementById('anchor-hint').innerText = anchorInput.value;
+        anchorInput.addEventListener('change', () => {
+            if (TIME24.test(anchorInput.value)) {
+                localStorage.setItem('sleep_anchor', anchorInput.value);
+                document.getElementById('anchor-hint').innerText = anchorInput.value;
+            }
+        });
+
+        // 主觀睡眠品質按鈕
+        function setQuality(q) {
+            document.getElementById('quality').value = q;
+            document.querySelectorAll('.quality-btn').forEach(btn => {
+                const active = Number(btn.dataset.q) === Number(q);
+                btn.classList.toggle('border-indigo-500', active);
+                btn.classList.toggle('bg-indigo-950/60', active);
+                btn.classList.toggle('text-indigo-200', active);
+                btn.classList.toggle('border-slate-700', !active);
+                btn.classList.toggle('text-slate-400', !active);
+            });
+        }
+        setQuality(3);
+
+        // 即時計算指標
+        const RING_LENGTH = 439.8;
+        function updatePreview() {
+            const bed = document.getElementById('bed-time').value;
+            const lights = document.getElementById('lights-time').value;
+            const lat = document.getElementById('latency').value;
+            const waso = document.getElementById('waso-minutes').value;
+            const wake = document.getElementById('wake-time').value;
+            const outBed = document.getElementById('out-bed-time').value;
+
+            const ring = document.getElementById('se-ring');
+            const seEl = document.getElementById('preview-se');
+            const statusEl = document.getElementById('preview-status');
+            const tipEl = document.getElementById('preview-tip');
+
+            if (!bed || !wake) {
+                ring.setAttribute('stroke-dashoffset', RING_LENGTH);
+                ring.setAttribute('stroke', '#475569');
+                seEl.innerText = '--%';
+                seEl.className = 'absolute inset-0 flex items-center justify-center text-3xl font-bold text-slate-400';
+                statusEl.innerText = '填寫後自動計算';
+                statusEl.className = 'inline-block text-xs px-3 py-1 rounded-lg border border-slate-700 text-slate-400';
+                ['preview-tib', 'preview-tst', 'preview-awake', 'preview-linger'].forEach(id => {
+                    document.getElementById(id).innerText = '--';
+                });
+                tipEl.innerText = '填寫上方時間後，這裡會依據您當晚的狀況給出提示。';
+                return;
+            }
+
+            const m = calculateMetrics(bed, lights, lat, waso, wake, outBed);
+            document.getElementById('preview-tib').innerText = formatDuration(m.tibMin);
+            document.getElementById('preview-tst').innerText = formatDuration(m.tstMin);
+            document.getElementById('preview-awake').innerText = formatDuration(m.awakeMin);
+            document.getElementById('preview-linger').innerText = formatDuration(m.lingerMin);
+
+            let color = '#34d399', textClass = 'text-emerald-400', badgeClass = 'border-emerald-800 text-emerald-300 bg-emerald-950/40', label = '優良 (≥ 85%)';
+            if (m.se < 80) {
+                color = '#fb7185'; textClass = 'text-rose-400'; badgeClass = 'border-rose-800 text-rose-300 bg-rose-950/40'; label = '偏低 (< 80%)';
+            } else if (m.se < 85) {
+                color = '#f59e0b'; textClass = 'text-amber-400'; badgeClass = 'border-amber-700 text-amber-300 bg-amber-950/40'; label = '普通 (80% - 85%)';
+            }
+            ring.setAttribute('stroke', color);
+            ring.setAttribute('stroke-dashoffset', RING_LENGTH * (1 - m.se / 100));
+            seEl.innerText = m.se + '%';
+            seEl.className = 'absolute inset-0 flex items-center justify-center text-3xl font-bold ' + textClass;
+            statusEl.innerText = label;
+            statusEl.className = 'inline-block text-xs px-3 py-1 rounded-lg border ' + badgeClass;
+
+            tipEl.innerText = m.awakeMin >= 20
+                ? '如果您的清醒時間超過 20-30 分鐘，請練習「離床刺激控制」：離開床上進行安靜放鬆活動，直到感到睏意再回床上。'
+                : '清醒在床的時間很短，「床與睡眠」的連結正在變得穩固。請維持固定的起床時間，繼續累積睡眠壓力。';
+        }
+        document.getElementById('sleep-form').addEventListener('input', updatePreview);
+        updatePreview();
+
+        function saveLog(e) {
+            e.preventDefault();
+            const newLog = {
+                date: document.getElementById('log-date').value,
+                bedTime: document.getElementById('bed-time').value,
+                lightsTime: document.getElementById('lights-time').value,
+                latency: document.getElementById('latency').value,
+                awakenings: document.getElementById('awakenings').value || 0,
+                wasoMinutes: document.getElementById('waso-minutes').value || 0,
+                wakeTime: document.getElementById('wake-time').value,
+                outBedTime: document.getElementById('out-bed-time').value,
+                quality: document.getElementById('quality').value,
+                notes: document.getElementById('notes').value,
+                caffeine: document.getElementById('caffeine').value,
+                nap: document.getElementById('nap').value,
+                stress: document.getElementById('stress').value,
+                energy: document.getElementById('energy').value
+            };
+
+            const metrics = calculateMetrics(newLog.bedTime, newLog.lightsTime, newLog.latency, newLog.wasoMinutes, newLog.wakeTime, newLog.outBedTime);
+            newLog.tib = metrics.tib;
+            newLog.tst = metrics.tst;
+            newLog.se = metrics.se;
+
+            // Remove existing for same date if any
+            logs = logs.filter(l => l.date !== newLog.date);
+            logs.push(newLog);
+            logs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            localStorage.setItem('sleep_logs', JSON.stringify(logs));
+            alert('睡眠日誌儲存成功！');
+
+            queueOp({ action: 'save', logs: [newLog] });
+
+            document.getElementById('sleep-form').reset();
+            setQuality(3);
+            document.getElementById('log-date').valueAsDate = new Date();
+            updatePreview();
+            switchTab('stats');
+        }
+
+        // Render 週調整建議 & 日誌列表
+        function renderStats() {
+            const tbody = document.getElementById('log-table-body');
+            tbody.innerHTML = '';
+
+            const recent7 = logs.slice(0, 7);
+            const n = recent7.length;
+            document.getElementById('day-count').innerText = n + ' / 7 天';
+
+            const recTitle = document.getElementById('window-recommendation');
+            const recBody = document.getElementById('rec-body');
+            const recIcon = document.getElementById('rec-icon');
+            const rules = { up: 'rule-up', keep: 'rule-keep', down: 'rule-down' };
+            Object.values(rules).forEach(id => document.getElementById(id).classList.remove('ring-2', 'ring-offset-0', 'ring-indigo-400'));
+
+            if (n === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">尚無記錄，請先填寫今日紀錄。</td></tr>';
+                document.getElementById('avg-se').innerText = '-- %';
+                document.getElementById('avg-se-note').innerText = '無數據';
+                document.getElementById('avg-tst').innerText = '-- 小時';
+                document.getElementById('avg-tib').innerText = '-- 小時';
+                recIcon.innerText = '🧭';
+                recTitle.innerText = '尚無足夠睡眠數據';
+                recBody.innerText = '請回到「今日紀錄」開始紀錄您的睡眠。持續紀錄 3-7 天後，系統將自動計算並給出 CBT-I 睡眠視窗調整建議。';
+                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+                return;
+            }
+
+            const avgSE = Math.round(recent7.reduce((acc, cur) => acc + Number(cur.se), 0) / n * 10) / 10;
+            const avgTST = (recent7.reduce((acc, cur) => acc + Number(cur.tst), 0) / n).toFixed(1);
+            const avgTIB = (recent7.reduce((acc, cur) => acc + Number(cur.tib), 0) / n).toFixed(1);
+
+            document.getElementById('avg-se').innerText = avgSE + ' %';
+            document.getElementById('avg-tst').innerText = avgTST + ' 小時';
+            document.getElementById('avg-tib').innerText = avgTIB + ' 小時';
+            document.getElementById('avg-se-note').innerText = avgSE >= 85 ? '優良' : avgSE >= 80 ? '普通' : '偏低';
+
+            if (n < 3) {
+                recIcon.innerText = '🧭';
+                recTitle.innerText = '尚無足夠睡眠數據';
+                recBody.innerText = `目前只有 ${n} 天紀錄。持續紀錄至 3 天以上，系統將給出 CBT-I 睡眠視窗調整建議。`;
+            } else {
+                const more = n < 5 ? '（目前紀錄天數偏少，多記錄幾天會更精準。）' : '';
+                if (avgSE >= 85) {
+                    recIcon.innerText = '🟢';
+                    recTitle.innerText = '擴展視窗：延長 15-30 分鐘';
+                    recBody.innerText = '睡眠效率非常好。下週可將睡眠視窗擴展 15-30 分鐘（提早 15 分鐘上床），給予身體更多睡眠時間。' + more;
+                    document.getElementById(rules.up).classList.add('ring-2', 'ring-indigo-400');
+                } else if (avgSE >= 80) {
+                    recIcon.innerText = '🟡';
+                    recTitle.innerText = '維持現狀';
+                    recBody.innerText = '睡眠效率穩定。下週維持相同的上床與起床時間，繼續累積睡眠壓力。' + more;
+                    document.getElementById(rules.keep).classList.add('ring-2', 'ring-indigo-400');
+                } else {
+                    recIcon.innerText = '🔴';
+                    recTitle.innerText = '收緊視窗：延後上床 15 分鐘';
+                    recBody.innerText = '在床上清醒過久。下週將上床時間延後 15 分鐘（縮短視窗），提升睡眠連續性。安全底限：睡眠視窗不低於 5.5 小時。' + more;
+                    document.getElementById(rules.down).classList.add('ring-2', 'ring-indigo-400');
+                }
+            }
+
+            logs.forEach((log, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-slate-200">${log.date}</td>
+                    <td class="p-3">${log.bedTime} → ${log.wakeTime}</td>
+                    <td class="p-3">${log.tib}h</td>
+                    <td class="p-3 text-indigo-400">${log.tst}h</td>
+                    <td class="p-3 font-bold ${log.se >= 85 ? 'text-emerald-400' : log.se < 80 ? 'text-amber-400' : 'text-slate-200'}">${log.se}%</td>
+                    <td class="p-3 text-slate-400 truncate max-w-xs">${log.notes || '-'}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteLog(${idx})" class="text-rose-400 hover:text-rose-300 px-2 py-1">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            renderChart(recent7.slice().reverse());
+        }
+
+        function deleteLog(index) {
+            if (confirm('確定要刪除這筆記錄嗎？')) {
+                queueOp({ action: 'delete', date: logs[index].date });
+                logs.splice(index, 1);
+                localStorage.setItem('sleep_logs', JSON.stringify(logs));
+                renderStats();
+            }
+        }
+
+        function clearAllData() {
+            if (confirm(syncConfig ? '確定要清除所有記錄嗎？Google 試算表上的資料也會一併清除。' : '確定要清除所有本地記錄嗎？')) {
+                queueOp({ action: 'clear' });
+                logs = [];
+                localStorage.removeItem('sleep_logs');
+                renderStats();
+            }
+        }
+
+        function exportCSV() {
+            if (logs.length === 0) { alert('沒有資料可匯出'); return; }
+            let csv = 'Date,BedTime,LightsTime,Latency,Awakenings,WasoMinutes,WakeTime,OutBedTime,TIB,TST,SE,Quality,Notes\n';
+            logs.forEach(l => {
+                csv += `${l.date},${l.bedTime},${l.lightsTime},${l.latency},${l.awakenings},${l.wasoMinutes},${l.wakeTime},${l.outBedTime},${l.tib},${l.tst},${l.se},${l.quality},"${l.notes || ''}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sleep_journal_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('sleepChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [
+                        {
+                            label: '睡眠效率 (SE %)',
+                            data: data.map(d => d.se),
+                            borderColor: '#34d399',
+                            backgroundColor: '#34d39922',
+                            yAxisID: 'y1',
+                            tension: 0.2
+                        },
+                        {
+                            label: '總睡眠時數 (TST h)',
+                            data: data.map(d => d.tst),
+                            borderColor: '#818cf8',
+                            backgroundColor: '#818cf822',
+                            yAxisID: 'y2',
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: '#33415522' }, ticks: { color: '#94a3b8' } },
+                        y1: { type: 'linear', position: 'left', min: 40, max: 100, grid: { color: '#33415522' }, ticks: { color: '#34d399' } },
+                        y2: { type: 'linear', position: 'right', min: 2, max: 12, grid: { display: false }, ticks: { color: '#818cf8' } }
+                    },
+                    plugins: { legend: { labels: { color: '#cbd5e1' } } }
+                }
+            });
+        }
+
+        // Doctor Summary Generator
+        function renderDoctorSummary() {
+            if (logs.length === 0) {
+                document.getElementById('doctor-summary-text').innerText = '尚無記錄可供整理。請先填寫幾筆睡眠日記。';
+                return;
+            }
+            const recent7 = logs.slice(0, 7);
+            const avgSE = Math.round(recent7.reduce((acc, cur) => acc + Number(cur.se), 0) / recent7.length);
+            const avgTST = (recent7.reduce((acc, cur) => acc + Number(cur.tst), 0) / recent7.length).toFixed(1);
+            const avgTIB = (recent7.reduce((acc, cur) => acc + Number(cur.tib), 0) / recent7.length).toFixed(1);
+
+            const summary = `【回診討論與減藥評估摘要】
+- 評估天數：最近 ${recent7.length} 天紀錄
+- 平均睡眠效率 (SE)：${avgSE} % (${avgSE >= 85 ? '睡眠驅動力建立良好' : '睡眠效率偏低，需維持視窗'})
+- 平均總睡眠時數 (TST)：${avgTST} 小時
+- 平均在床時間 (TIB)：${avgTIB} 小時
+- 目前用藥狀況：服用史蒂諾斯 (Zolpidem)
+- 訴求：擬在醫師指導下評估漸進式減量（如 1 -> 3/4 顆），配合 CBT-I 睡眠視窗調節，建立自然睡眠機制。`;
+
+            document.getElementById('doctor-summary-text').innerText = summary;
+        }
+
+        function copyDoctorSummary() {
+            const text = document.getElementById('doctor-summary-text').innerText;
+            navigator.clipboard.writeText(text);
+            alert('門診摘要已複製到剪貼簿！');
+        }
+
+        // Breathing Exercise
+        let breathInterval = null;
+        function startBreathing() {
+            const disp = document.getElementById('breathing-display');
+            const btn = document.getElementById('breath-btn');
+            btn.disabled = true;
+            let steps = ['吸氣 4 秒...', '憋氣 7 秒...', '吐氣 8 秒...'];
+            let stepIdx = 0;
+            let count = 0;
+
+            disp.innerText = steps[0];
+            breathInterval = setInterval(() => {
+                count++;
+                if (count % 3 === 0) {
+                    stepIdx = (stepIdx + 1) % 3;
+                    disp.innerText = steps[stepIdx];
+                }
+                if (count >= 18) { // ~1 min
+                    clearInterval(breathInterval);
+                    disp.innerText = '練習完成，祝您好眠 🌙';
+                    btn.disabled = false;
+                }
+            }, 2000);
+        }
+
+        // ===== Google 試算表雲端同步（Apps Script）=====
+        // 「同步碼」= base64url({"u":"Apps Script 網址","t":"同步密碼"})。
+        // 開啟「網址#sync=同步碼」的連結，或點右上角狀態貼上同步碼，即可在該裝置連線；
+        // 設定只存在這台裝置的瀏覽器，不會寫在網頁原始碼裡。
+        const SYNC_KEY = 'sleep_sync';
+        const OUTBOX_KEY = 'sleep_outbox';
+        let syncConfig = null;
+        try { syncConfig = JSON.parse(localStorage.getItem(SYNC_KEY) || 'null'); } catch (e) {}
+        let flushing = false;
+        let lastSyncAt = 0;
+
+        function decodeSyncCode(code) {
+            try {
+                const b64 = code.trim().replace(/-/g, '+').replace(/_/g, '/');
+                const cfg = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
+                if (cfg && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(cfg.u) && cfg.t) return cfg;
+            } catch (e) {}
+            return null;
+        }
+
+        function updateSyncStatus(state, text) {
+            const stat = document.getElementById('sync-status');
+            const styles = {
+                offline: ['bg-slate-800 text-slate-400 border-slate-700', 'bg-slate-500'],
+                connected: ['bg-emerald-950 text-emerald-300 border-emerald-800', 'bg-emerald-400'],
+                syncing: ['bg-indigo-950 text-indigo-300 border-indigo-800', 'bg-indigo-400 animate-pulse'],
+                error: ['bg-rose-950 text-rose-300 border-rose-800', 'bg-rose-400']
+            };
+            const [box, dot] = styles[state] || styles.offline;
+            stat.className = 'px-2.5 py-1 rounded-full border flex items-center gap-1.5 text-xs transition ' + box;
+            stat.innerHTML = `<span class="w-2 h-2 rounded-full ${dot}"></span> ${text}`;
+        }
+
+        function getOutbox() {
+            try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); } catch (e) { return []; }
+        }
+        function setOutbox(q) { localStorage.setItem(OUTBOX_KEY, JSON.stringify(q)); }
+
+        // 要送到雲端的動作先排進佇列，離線也不會遺失，連線後自動補送
+        function queueOp(op) {
+            if (!syncConfig) return;
+            const q = getOutbox();
+            q.push(op);
+            setOutbox(q);
+            flushOutbox();
+        }
+
+        async function postToCloud(op) {
+            const res = await fetch(syncConfig.u, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 簡單請求，避免 CORS 預檢
+                body: JSON.stringify({ ...op, token: syncConfig.t })
+            });
+            return res.json();
+        }
+
+        async function flushOutbox() {
+            if (!syncConfig) return true;
+            if (flushing) return false;
+            flushing = true;
+            try {
+                let q = getOutbox();
+                if (q.length) updateSyncStatus('syncing', '同步中…');
+                while (q.length) {
+                    const res = await postToCloud(q[0]);
+                    if (res.status !== 'ok') throw new Error(res.message || 'cloud error');
+                    q = getOutbox().slice(1);
+                    setOutbox(q);
+                }
+                updateSyncStatus('connected', '已同步');
+                return true;
+            } catch (err) {
+                console.error('Cloud sync error:', err);
+                updateSyncStatus('error', '同步失敗，點此設定');
+                return false;
+            } finally {
+                flushing = false;
+            }
+        }
+
+        async function fetchFromCloud() {
+            if (!syncConfig) return;
+            try {
+                const res = await fetch(`${syncConfig.u}?token=${encodeURIComponent(syncConfig.t)}`);
+                const data = await res.json();
+                if (data.status !== 'ok') throw new Error(data.message || 'cloud error');
+                // 雲端為準（待送出的動作已先送完）
+                logs = data.logs.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+                localStorage.setItem('sleep_logs', JSON.stringify(logs));
+                renderStats();
+                const t = new Date();
+                updateSyncStatus('connected', `已同步 ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
+            } catch (err) {
+                console.error('Fetch cloud data error:', err);
+                updateSyncStatus('error', '同步失敗，點此設定');
+            }
+        }
+
+        async function syncNow() {
+            if (!syncConfig) return;
+            lastSyncAt = Date.now();
+            updateSyncStatus('syncing', '同步中…');
+            if (await flushOutbox()) await fetchFromCloud();
+        }
+
+        function connectSync(cfg) {
+            syncConfig = cfg;
+            localStorage.setItem(SYNC_KEY, JSON.stringify(cfg));
+            // 第一次連線：把這台裝置上已有的紀錄一併上傳
+            if (logs.length) {
+                const q = getOutbox();
+                q.push({ action: 'save', logs: logs });
+                setOutbox(q);
+            }
+            syncNow();
+        }
+
+        function disconnectSync() {
+            syncConfig = null;
+            localStorage.removeItem(SYNC_KEY);
+            localStorage.removeItem(OUTBOX_KEY);
+            updateSyncStatus('offline', '本地離線模式');
+        }
+
+        function promptSyncSetup() {
+            if (syncConfig && confirm('目前已連線 Google 試算表。\n按「確定」立即同步，按「取消」進入設定。')) {
+                syncNow();
+                return;
+            }
+            const code = prompt('貼上「同步碼」以連線 Google 試算表。\n（留空後按確定 = 中斷同步，資料仍保留在這台裝置）', '');
+            if (code === null) return;
+            if (code.trim() === '') {
+                if (syncConfig) disconnectSync();
+                return;
+            }
+            const cfg = decodeSyncCode(code);
+            if (cfg) {
+                connectSync(cfg);
+            } else {
+                alert('同步碼無效，請確認完整複製。');
+            }
+        }
+
+        // 網頁載入：處理「#sync=同步碼」連結 → 自動同步
+        function applyHashSync() {
+            const m = location.hash.match(/^#sync=(.+)$/);
+            if (!m) return false;
+            history.replaceState(null, '', location.pathname + location.search); // 不讓同步碼留在網址列
+            const cfg = decodeSyncCode(m[1]);
+            if (cfg) {
+                connectSync(cfg);
+                alert('已連線 Google 試算表，之後這台裝置會自動同步。');
+            } else {
+                alert('同步碼無效，請重新取得連結。');
+            }
+            return true;
+        }
+
+        (function initSync() {
+            const fromLink = applyHashSync();
+            if (!fromLink) {
+                if (syncConfig) {
+                    updateSyncStatus('connected', '已連線雲端');
+                    syncNow();
+                } else {
+                    updateSyncStatus('offline', '本地離線模式');
+                }
+            }
+            // 頁面已開著、只換了網址後面的 #sync=… 時，瀏覽器不會重新載入，所以另外監聽
+            window.addEventListener('hashchange', applyHashSync);
+            // 切回這個分頁／App 時，若超過 30 秒就重新同步，手機與電腦保持一致
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && syncConfig && Date.now() - lastSyncAt > 30000) syncNow();
+            });
+        })();
+    </script>
+</body>
+</html>

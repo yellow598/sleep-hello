@@ -14,24 +14,24 @@ const SHEET_NAME = '睡眠日誌';
 
 // [欄位 key, 試算表標題, 是否純文字]
 const COLUMNS = [
-  ['date',       'Date',        true],
-  ['bedTime',    'BedTime',     true],
-  ['lightsTime', 'LightsTime',  true],
-  ['latency',    'Latency',     false],
-  ['awakenings', 'Awakenings',  false],
-  ['wasoMinutes','WasoMinutes', false],
-  ['wakeTime',   'WakeTime',    true],
-  ['outBedTime', 'OutBedTime',  true],
-  ['tib',        'TIB',         false],
-  ['tst',        'TST',         false],
-  ['se',         'SE',          false],
-  ['quality',    'Quality',     false],
-  ['notes',      'Notes',       true],
-  ['caffeine',   'Caffeine',    true],
-  ['nap',        'Nap',         true],
-  ['stress',     'Stress',      false],
-  ['energy',     'Energy',      false],
-  ['updatedAt',  'UpdatedAt',   true]
+  ['date',       '日期',            true],
+  ['bedTime',    '上床時間',        true],
+  ['lightsTime', '熄燈時間',        true],
+  ['latency',    '入睡花費(分)',    false],
+  ['awakenings', '夜醒次數',        false],
+  ['wasoMinutes','夜醒總時間(分)',  false],
+  ['wakeTime',   '最後醒來',        true],
+  ['outBedTime', '離床時間',        true],
+  ['tib',        '在床時數(小時)',  false],
+  ['tst',        '睡眠時數(小時)',  false],
+  ['se',         '睡眠效率(%)',     false],
+  ['quality',    '睡眠品質(1-5)',   false],
+  ['notes',      '備註',            true],
+  ['caffeine',   '咖啡因',          true],
+  ['nap',        '午睡',            true],
+  ['stress',     '壓力(1-5)',       false],
+  ['energy',     '精力(1-5)',       false],
+  ['updatedAt',  '更新時間',        true]
 ];
 
 function doGet(e) {
@@ -93,6 +93,13 @@ function getSheet_() {
     COLUMNS.forEach((c, i) => {
       if (c[2]) sheet.getRange(2, i + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
     });
+  } else {
+    // 標題列和程式裡定義的不同時（例如改了欄位名稱），自動更新成最新的標題
+    const headers = COLUMNS.map(c => c[1]);
+    const current = sheet.getRange(1, 1, 1, COLUMNS.length).getValues()[0];
+    if (current.join('|') !== headers.join('|')) {
+      sheet.getRange(1, 1, 1, COLUMNS.length).setValues([headers]).setFontWeight('bold');
+    }
   }
   return sheet;
 }

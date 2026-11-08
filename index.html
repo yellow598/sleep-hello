@@ -114,7 +114,7 @@
                         <div class="text-xs font-bold text-violet-400 tracking-wide">2. 夜間清醒時間 (DURATIONS)</div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium text-slate-300 mb-1">躺下後多久入睡？（分鐘）</label>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">熄燈後多久入睡？（分鐘）</label>
                                 <div class="relative">
                                     <input type="number" inputmode="numeric" id="latency" min="0" placeholder="例如：25" required class="w-full min-h-[44px] bg-night-950 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-base text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">分鐘</span>
@@ -221,12 +221,12 @@
                         <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
                             <div class="text-[10px] text-slate-400">實際總睡眠時間 (TST)</div>
                             <div id="preview-tst" class="text-base sm:text-lg font-bold text-violet-400 mt-1">--</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5">扣除入睡、夜醒與賴床</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">熄燈後入睡到醒來，扣除夜醒</div>
                         </div>
                         <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
                             <div class="text-[10px] text-slate-400">清醒在床時間</div>
                             <div id="preview-awake" class="text-base sm:text-lg font-bold text-rose-400 mt-1">--</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5">在床上醒著的總和</div>
+                            <div class="text-[10px] text-slate-500 mt-0.5">在床上醒著的總和（含熄燈前、賴床）</div>
                         </div>
                         <div class="bg-night-950 border border-slate-800 rounded-xl p-3">
                             <div class="text-[10px] text-slate-400">晨間賴床</div>
@@ -496,17 +496,27 @@
             return d;
         }
 
-        // TIB = 上床到離床；TST = TIB - 入睡時間 - 夜醒 - 晨間賴床
+        // 睡眠日誌標準算法（以上床時間為 0 點，往後算分鐘）：
+        //   TIB = 離床 - 上床
+        //   入睡時刻 = 熄燈 + 入睡時間(SOL)
+        //   TST = (最後醒來 - 入睡時刻) - 夜醒(WASO)
+        //   SE = TST / TIB
+        // 上床到熄燈之間、晨間賴床，都算「在床上醒著」，不算睡眠。
         function calculateMetrics(bedTime, lightsTime, latency, waso, wakeTime, outBedTime) {
             const wakeM = minutesBetween(bedTime, wakeTime);
             const outM = outBedTime ? Math.max(minutesBetween(bedTime, outBedTime), wakeM) : wakeM;
             const lingerM = outM - wakeM;
 
+            // 熄燈沒填、或比上床還早（會被誤算成隔天）、或晚於醒來：退回上床時間
+            let lightsM = lightsTime ? minutesBetween(bedTime, lightsTime) : 0;
+            if (lightsM > wakeM) lightsM = 0;
+
             const tibM = outM;
             const lat = Number(latency) || 0;
             const wasoM = Number(waso) || 0;
-            const awakeM = lat + wasoM + lingerM;
-            const tstM = Math.max(0, tibM - awakeM);
+            const sleepSpanM = Math.max(0, wakeM - (lightsM + lat));
+            const tstM = Math.max(0, sleepSpanM - wasoM);
+            const awakeM = Math.max(0, tibM - tstM);
             const se = tibM > 0 ? Math.round((tstM / tibM) * 1000) / 10 : 0;
 
             return {

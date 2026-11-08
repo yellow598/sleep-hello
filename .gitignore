@@ -1,2 +1,4 @@
 index.backup*.html
 .playwright-mcp/
+CLAUDE.md
+.claude/
